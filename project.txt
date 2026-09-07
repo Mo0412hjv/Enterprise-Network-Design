@@ -1,7 +1,7 @@
 =====================================================
-multi-department-enterprise-network-simulation - Full Report
+cisco-enterprise-network-design - Full Report
 =====================================================
-
+All Commands Used
 --------------------------------------------------
 1) Subnetting
 --------------------------------------------------
@@ -179,8 +179,3 @@ From the WRT300N GUI (Setup tab):
 
 the WRT300N itself performs NAT between 
 the wireless LAN (192.168.0.0/24) and its WAN-side IP (192.168.4.252).
-
-
-=====================================================
-End of Report
-=====================================================
