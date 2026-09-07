@@ -1,0 +1,186 @@
+=====================================================
+multi-department-enterprise-network-simulation - Full Report
+=====================================================
+
+--------------------------------------------------
+1) Subnetting
+--------------------------------------------------
+Orange network (Router0 - Switch0):      192.168.1.0/24
+Cyan network (Router0 - Switch1):        192.168.2.192/26
+Purple network (Internet):               200.100.50.0/24
+Link Router0 - Router1:                  192.168.3.252/30
+Green network (Router1 - Switch7):       192.168.4.248/29
+Yellow network (Wireless - WRT300N):     192.168.0.0/24
+
+
+--------------------------------------------------
+2) Console Cable Config
+--------------------------------------------------
+Router>enable
+Router#configure terminal
+Router(config)#hostname R0
+R0(config)#enable secret cisco
+R0(config)#line console 0
+R0(config-line)#password cisco
+R0(config-line)#login
+R0(config-line)#exit
+
+
+--------------------------------------------------
+3) Interface Configuration
+--------------------------------------------------
+
+# Router0
+R0(config)#interface gigabitEthernet 0/0
+R0(config-if)#ip address 192.168.1.1 255.255.255.0
+R0(config-if)#no shutdown
+R0(config-if)#exit
+
+R0(config)#interface gigabitEthernet 0/1
+R0(config-if)#ip address 192.168.2.200 255.255.255.192
+R0(config-if)#no shutdown
+R0(config-if)#exit
+
+R0(config)#interface gigabitEthernet 0/2
+R0(config-if)#ip address 192.168.3.253 255.255.255.252
+R0(config-if)#no shutdown
+R0(config-if)#exit
+
+# Router1
+R1(config)#interface gigabitEthernet 0/0
+R1(config-if)#ip address 192.168.3.254 255.255.255.252
+R1(config-if)#no shutdown
+R1(config-if)#exit
+
+R1(config)#interface gigabitEthernet 0/2
+R1(config-if)#ip address 200.100.50.1 255.255.255.0
+R1(config-if)#no shutdown
+R1(config-if)#exit
+
+R1(config)#interface gigabitEthernet 0/1
+R1(config-if)#ip address 192.168.4.249 255.255.255.248
+R1(config-if)#no shutdown
+R1(config-if)#exit
+
+--------------------------------------------------
+4) DHCP Protocol
+--------------------------------------------------
+DHCP was configured server-based (not via router CLI) on:
+- Server2 (192.168.1.0/24 - Orange network)
+- The single server in the Cyan network
+- The single server in the Green network
+- WRT300N wireless router (DHCP server for Yellow network)
+
+Setup: Server > Config Tab > DHCP > Service: On, set Default Gateway,
+DNS Server, Start IP, Subnet Mask, then Add.
+Clients set to automatic DHCP from IP Configuration tab.
+
+
+--------------------------------------------------
+5) SSH / Telnet + Privilege
+--------------------------------------------------
+R0(config)#username mohamed privilege 15 password 123
+R0(config)#username ali privilege 0 password 123
+R0(config)#enable secret cisco
+
+R0(config)#ip domain-name mydomain.com
+R0(config)#crypto key generate rsa
+(key size 1024)
+
+R0(config)#line vty 0 4
+R0(config-line)#login local
+R0(config-line)#transport input ssh telnet 
+R0(config-line)#exit
+
+R0(config)#line console 0
+R0(config-line)#login local
+R0(config-line)#exit
+
+Testing:
+From PC0: ssh -l ali 192.168.1.1
+From PC1: telnet 192.168.2.200
+
+
+--------------------------------------------------
+6) OSPF
+--------------------------------------------------
+
+# Router0
+R0(config)#router ospf 1
+R0(config-router)#network 192.168.1.0 0.0.0.255 area 0
+R0(config-router)#network 192.168.2.192 0.0.0.63 area 0
+R0(config-router)#network 192.168.3.252 0.0.0.3 area 0
+R0(config-router)#exit
+
+# Router1
+R1(config)#router ospf 1
+R1(config-router)#network 192.168.3.252 0.0.0.3 area 0
+R1(config-router)#network 192.168.4.248 0.0.0.7 area 0
+R1(config-router)#network 192.168.0.0 0.0.0.255 area 0
+R1(config-router)#exit
+
+# Default route to Internet (Purple network not part of OSPF)
+R1(config)#ip route 0.0.0.0 0.0.0.0 200.100.50.20
+
+
+--------------------------------------------------
+7) Wireless Connection (WPA2 Enterprise)
+--------------------------------------------------
+Wireless devices (Laptop4, PC8, PC6, PC5) connect to WRT300N using
+WPA2 Enterprise, authenticated via a RADIUS/AAA server at 192.168.4.250.
+
+WRT300N GUI settings:
+- Network Mode: Mixed
+- SSID: (chosen name)
+- Security Mode: WPA2 Enterprise
+- RADIUS Server: 192.168.4.250
+- Shared Secret: (agreed key)
+
+Server 192.168.4.250 (AAA service):
+- Services > AAA > Service: On
+- Network Config: Client Name = WRT300N, Client IP = 192.168.4.252,
+  Secret = (same key), ServerType = Radius
+- User Setup: added user1, user2 for wireless client login
+
+
+--------------------------------------------------
+8) NAT / PAT
+--------------------------------------------------
+PAT (Overload) applied to all devices in Green and Yellow networks,
+except server 192.168.4.250 which has Static NAT.
+
+R1(config)#access-list 1 permit 192.168.4.248 0.0.0.7
+
+R1(config)#interface gigabitEthernet 0/1
+R1(config-if)#ip nat inside
+R1(config-if)#exit
+
+R1(config)#interface gigabitEthernet 0/2
+R1(config-if)#ip nat outside
+R1(config-if)#exit
+
+R1(config)#ip nat inside source list 1 interface gigabitEthernet 0/2 overload
+
+R1(config)#ip nat inside source static 192.168.4.250 200.100.50.20
+
+R1(config)#ip route 192.168.0.0 255.255.255.0 192.168.4.252
+
+------------------------------------------------------------------------------
+WRT300N Wireless Router - Internet Connection Setup
+-----------------------------------------------------
+The WRT300N acts as a NAT router between the Green network 
+(192.168.4.248/29) and the Yellow wireless network (192.168.0.0/24).
+
+From the WRT300N GUI (Setup tab):
+- Internet Connection Type: Static IP
+- Internet IP Address: 192.168.4.252
+- Subnet Mask: 255.255.255.248
+- Default Gateway: 192.168.4.249
+
+the WRT300N itself performs NAT between 
+the wireless LAN (192.168.0.0/24) and its WAN-side IP (192.168.4.252).
+
+
+=====================================================
+End of Report
+=====================================================
